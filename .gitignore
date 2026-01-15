@@ -1,3 +1,24 @@
+# Arduino
+*.ino~
+*.hex
+*.elf
+*.bin
+*.map
+*.lst
+*.eep
+
+# Arduino build folders
+/build/
+/build-*/
+/.sketches/
+
+# VS Code
+.vscode/
+.history/
+
+# PlatformIO
+.pio/
+
 # Prerequisites
 *.d
 
