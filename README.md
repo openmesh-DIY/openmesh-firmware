@@ -1,49 +1,114 @@
-# openmesh-firmware
+# OpenMesh Firmware
 
-OpenMesh is a cheap, Arduino-based LoRa mesh firmware for ESP32 + SX127x radios.
+OpenMesh is a **cheap, DIY, Arduino-first LoRa mesh firmware** for ESP32 + SX127x radios.
 
-It is designed for:
-- DIY hardware
-- Low-cost nodes
+This project exists so **normal people** can build mesh comms without:
+- expensive boards
+- vendor lock-in
+- forced GPS
+- forced cloud
+- forced apps
+
+Phone is **optional**.  
+Nodes work **standalone** with OLED + buttons.
+
+---
+
+## 🔥 Core Principles
+
+- Cheap hardware
+- Arduino IDE friendly
 - Full user control
-- Bluetooth Classic configuration
-- OLED-based standalone messaging
+- Bluetooth Classic (SPP) configuration
+- Works without internet
+- Works without phone
+- Open protocol
 
-## Goals
-- No vendor lock-in  
-- No expensive boards  
-- Arduino-first  
-- Works without a phone  
-- Phone optional via Bluetooth Classic  
+---
 
-## Features
+## ✨ Features
+
 - ESP32 (WROOM32 recommended)
-- SX1276 / SX1278 support
-- LoRa CSS modulation
-- Mesh routing with TTL
+- SX1276 / SX1278 LoRa (CSS)
+- Broadcast & Directed messages
+- Mesh routing with TTL (hop count)
 - Anti-loop protection
-- AES-256 encryption
-- Bluetooth Classic (SPP) control
-- OLED UI for quick messages
-- Broadcast and directed messaging
+- Node naming stored in flash
+- Bluetooth Classic (SPP) CLI
+- OLED UI (SSD1306)
+- AES-256 encryption (optional)
+- No GPS
+- No vendor servers
 
-## Status
-⚠️ **Experimental** — under active development.  
-Expect bugs, breaking changes, and rapid iteration.
+---
 
-## Hardware
-- ESP32 (WROOM32 recommended)
-- SX1276 / SX1278 LoRa module
-- 128x64 OLED (SSD1306)
-- 433 based
+## 🧱 Hardware
 
-## Contributing
-Contributions are welcome.
+Minimum:
+- ESP32
+- SX1276 / SX1278
+- OLED SSD1306 (128x64)
 
-By contributing to this project, you agree that your contributions may be
-used, modified, and **relicensed** under future versions of this project’s
-license by the OpenMesh maintainers.
+Supported bands:
+- 433 MHz
+- 868 MHz
+- 915 MHz
 
-## License
-Licensed under the **Apache License, Version 2.0**.
-See the `LICENSE` file for details.
+---
+
+## 📡 How It Works (Simple)
+
+- Every node has:
+  - Node ID
+  - Human-readable node name
+- Messages contain:
+  - SRC
+  - DEST (or broadcast)
+  - TTL (hop limit)
+  - Payload
+- Nodes forward packets until TTL = 0
+- Duplicate packets are dropped
+
+---
+
+## 🔵 Bluetooth Control
+
+Bluetooth Classic SPP lets you:
+- Set node name
+- Change LoRa parameters
+- Send messages
+- View node info
+- Debug mesh behavior
+
+Any Bluetooth Serial app works.
+
+---
+
+## ⚠️ Status
+
+🚧 **EXPERIMENTAL**  
+This firmware is under active development.
+
+Do NOT rely on it for safety-critical use.
+
+---
+
+## 🛣️ Roadmap
+
+- v0.1.x — stable mesh + CLI
+- v0.2.x — Android app
+- v0.3.x — better routing
+- v1.0.0 — protocol freeze
+
+---
+
+## 📜 License
+
+Apache License 2.0
+
+You can:
+- use it
+- modify it
+- sell hardware with it
+
+Just don’t be a dick.
