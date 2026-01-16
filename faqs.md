@@ -40,7 +40,7 @@ it’s not a mesh, it’s a dependency issue.
 
 ## Is this secure?
 Enough for chatting.
-Not enough for planning a coup.
+Not enough for planning a sudoku or.. things...
 
 AES-256 is used, but:
 - Key management is manual
