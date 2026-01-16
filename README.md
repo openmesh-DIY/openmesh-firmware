@@ -2,6 +2,10 @@
 
 # OpenMesh Firmware
 
+<!--
+This project exists because "cheap" shouldn't mean "locked down".
+-->
+
 ⚠️ Warning: This firmware may contain bugs, bad ideas, and questionable design decisions.
 If it works for you, great. If it doesn’t… welcome to DIY.
 
@@ -56,6 +60,7 @@ Nodes work **standalone** with OLED + buttons.
 If you're reading this:
 yes, it was built at 3am
 no, it wasn't tested enough
+yes, it still works better than your idea
 -->
 
 ## 🧱 Hardware
@@ -89,6 +94,18 @@ Supported bands:
 
 ---<img width="229" height="207" alt="Screenshot_20260116_083415" src="https://github.com/user-attachments/assets/661b8e8d-07c8-4e6c-8c73-c8ce5c2fd659" />
 
+
+<!--
+Dear attacker:
+If you're here looking for an API key,
+this is firmware.
+Go learn radio.
+-->
+
+<!--
+Cloning this repo does not make you a hacker.
+It makes you someone with internet access.
+-->
 
 ## 🔵 Bluetooth Control
 
