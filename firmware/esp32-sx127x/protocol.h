@@ -1,6 +1,7 @@
 // OpenMesh Protocol v1
 // Simple on purpose.
 // If you want complexity, use something else.
+// This protocol assumes unreliable transport and unreliable humans.
 
 #pragma once
 #include <stdint.h>
@@ -28,14 +29,14 @@ enum OpenMeshPacketType : uint8_t {
 
 // ================= HEADER =================
 struct __attribute__((packed)) OpenMeshHeader {
-    uint8_t  version;      // protocol version (1)
-    uint8_t  type;         // OpenMeshPacketType
-    uint8_t  ttl;          // hop counter
-    uint8_t  flags;        // OM_FLAG_*
-    uint16_t src;          // source node ID
-    uint16_t dest;         // dest node ID / broadcast
-    uint16_t msg_id;       // anti-loop + ack tracking
-    uint16_t payload_len;  // bytes after header
+    uint8_t  version;      // Protocol versions should increase slower than hardware generations.
+    uint8_t  type;         // Types are cheap. Compatibility is not
+    uint8_t  ttl;          // Prevents packets from achieving immortality.
+    uint8_t  flags;        // Flags exist so we don't break the protocol every six months.
+    uint16_t src;           // Trust the sender ID only as much as you trust the RF environment.
+    uint16_t dest;         // BROADCAST is not a strategy.
+    uint16_t msg_id;       // Uniqueness is temporary. Loops are forever.
+    uint16_t payload_len;  // Length is explicit to avoid guessing, padding, and regret.
 };
 
 // ================= PACKET =================
@@ -43,3 +44,6 @@ struct __attribute__((packed)) OpenMeshPacket {
     OpenMeshHeader header;
     uint8_t payload[OPENMESH_MAX_PAYLOAD];
 };
+
+// Protocol stability > feature velocity
+// Past this point lies backward compatibility.
