@@ -1,3 +1,10 @@
+____                  __  ___           __
+  / __ \____  ___  ____ /  |/  /__  ______/ /_
+ / / / / __ \/ _ \/ __ `/ /|_/ / _ \/ ___/ __/
+/ /_/ / /_/ /  __/ /_/ / /  / /  __(__  ) /_
+\____/ .___/\___/\__,_/_/  /_/\___/____/\__/
+    /_/
+
 # OpenMesh Firmware
 
 ⚠️ Warning: This firmware may contain bugs, bad ideas, and questionable design decisions.
