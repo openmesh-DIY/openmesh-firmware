@@ -50,6 +50,12 @@ Nodes work **standalone** with OLED + buttons.
 
 ---
 
+<!--
+If you're reading this:
+yes, it was built at 3am
+no, it wasn't tested enough
+-->
+
 ## 🧱 Hardware
 
 Minimum:
