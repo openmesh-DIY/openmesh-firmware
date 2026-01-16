@@ -1,4 +1,4 @@
-# OpenMesh FAQ 😈
+# OpenMesh FAQ 
 
 ## Why OpenMesh?
 Because Meshtastic is cool but my wallet is not.
@@ -14,7 +14,7 @@ Also because:
 No.
 
 Meshtastic is a full ecosystem.
-OpenMesh is a **firmware**.
+OpenMesh is a "**firmware**".
 
 Think:
 - Meshtastic = Swiss Army Knife
