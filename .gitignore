@@ -1,62 +1,16 @@
-# Arduino
-*.ino~
-*.hex
-*.elf
-*.bin
-*.map
-*.lst
-*.eep
+# OpenMesh gitignore
+# If you commit build junk, that's on you.
+# If it breaks, don't look at me.
 
-# Arduino build folders
-/build/
-/build-*/
-/.sketches/
-
-# VS Code
-.vscode/
-.history/
-
-# PlatformIO
+build/
 .pio/
+.vscode/
+.idea/
 
-# Prerequisites
-*.d
+# Arduino pain
+*.elf
+*.hex
+*.bin
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# debug information files
-*.dwo
+# Temporary suffering
+*.log
