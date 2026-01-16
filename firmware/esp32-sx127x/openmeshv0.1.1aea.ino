@@ -18,6 +18,7 @@
 // No, I am not proud of it.
 // Yes, it works.
 //also I don't know why I make this much comment...
+// TODO: Replace this with a better algorithm (2019 me was optimistic)
 // TODO: clean this up
 // Status: not today
 
@@ -35,7 +36,7 @@
 // ================= PROTOCOL & CONFIG =================
 #define OPENMESH_MAX_PAYLOAD 180
 #define BROADCAST_ID 0xFFFF
-#define MAX_TTL 8 // TTL prevents your packets from touring the entire city
+#define MAX_TTL 8 // because more than this means your mesh is lying to itself // TTL prevents your packets from touring the entire city
 // Anti-loop exists because radios are stupid but persistent.
 #define OPENMESH_EASTER "The mesh watches silently."  
 
