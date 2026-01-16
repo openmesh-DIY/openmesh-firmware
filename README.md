@@ -109,6 +109,9 @@ Do NOT rely on it for safety-critical use.
 
 Apache License 2.0
 
+By contributing, you agree that your contributions
+may be relicensed by the project maintainer
+
 You can:
 - use it
 - modify it
