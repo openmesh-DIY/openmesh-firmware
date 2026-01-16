@@ -19,6 +19,7 @@
 #define OPENMESH_MAX_PAYLOAD 180
 #define BROADCAST_ID 0xFFFF
 #define MAX_TTL 8 // TTL prevents your packet from touring the entire city
+// Anti-loop exists because radios are stupid but persistent.
 
 struct __attribute__((packed)) OpenMeshHeader {
     uint8_t  version; uint8_t type; uint8_t ttl; uint8_t flags;
@@ -34,6 +35,8 @@ struct LoRaSettings {
 } currentCfg;
 
 // AES-256 — yes this is real crypto, no this is not XOR, stop asking(Keep this identical on all your nodes or else you're fucked. AINT MY FAULT OK)
+// And also No, this is not military grade.
+// Yes, it's good enough for random people yelling "WYA".
 
 unsigned char aes_key[32] = {
   0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,
