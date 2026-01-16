@@ -69,7 +69,10 @@ Supported bands:
 - Nodes forward packets until TTL = 0
 - Duplicate packets are dropped
 
----
+-wiring here
+
+---<img width="229" height="207" alt="Screenshot_20260116_083415" src="https://github.com/user-attachments/assets/661b8e8d-07c8-4e6c-8c73-c8ce5c2fd659" />
+
 
 ## 🔵 Bluetooth Control
 
