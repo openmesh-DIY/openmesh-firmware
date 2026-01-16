@@ -2,7 +2,9 @@
 // Feel free to modify and improve under the project license.
 // If you make big changes, please document them clearly.
 //dont mess shit up ok i aint fixing it up
-
+// If it works: great.
+// If it breaks: congrats, you found a bug.
+// PRs welcome. Panic optional.
 
 #include <SPI.h>
 #include <LoRa.h>
@@ -16,7 +18,7 @@
 // ================= PROTOCOL & CONFIG =================
 #define OPENMESH_MAX_PAYLOAD 180
 #define BROADCAST_ID 0xFFFF
-#define MAX_TTL 8
+#define MAX_TTL 8 // TTL prevents your packet from touring the entire city
 
 struct __attribute__((packed)) OpenMeshHeader {
     uint8_t  version; uint8_t type; uint8_t ttl; uint8_t flags;
@@ -31,7 +33,8 @@ struct LoRaSettings {
     int tx = 20;
 } currentCfg;
 
-// AES Key (Keep this identical on all your nodes or else you're fucked. AINT MY FAULT OK)
+// AES-256 — yes this is real crypto, no this is not XOR, stop asking(Keep this identical on all your nodes or else you're fucked. AINT MY FAULT OK)
+
 unsigned char aes_key[32] = {
   0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,
   0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,0x20
@@ -222,7 +225,8 @@ void loop() {
 
         // Relay
         if(h.dest != nodeID && h.ttl > 1) {
-            delay(random(100, 500));
+            delay(random(100, 500));// collision avoidance aka "please don't scream at the air"
+
             h.ttl--;
             LoRa.beginPacket();
             LoRa.write((uint8_t*)&h, sizeof(h));
