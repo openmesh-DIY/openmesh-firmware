@@ -6,16 +6,28 @@
 // If it breaks: congrats, you found a bug.
 // PRs welcome. Panic optional.
 
+// WARNING:
+// This firmware was written at 2AM.
+// Side effects may include:
+// - dropped packets
+// - sudden enlightenment
+// - uncontrollable urge to add features
+
 // NOTE:
 // Yes, this is hardcoded.
 // No, I am not proud of it.
 // Yes, it works.
+//also I don't know why I make this much comment...
+// TODO: clean this up
+// Status: not today
 
 #include <SPI.h>
 #include <LoRa.h>
 #include <Wire.h>
 #include <U8g2lib.h>
-#include <OneButton.h>
+#include <OneButton.h> // One button.
+// One brain cell.
+// Infinite possibilities.
 #include "mbedtls/aes.h"
 #include <Preferences.h>
 #include "BluetoothSerial.h"
@@ -31,7 +43,14 @@ struct __attribute__((packed)) OpenMeshHeader {
     uint16_t src; uint16_t dest; uint16_t msg_id; uint16_t payload_len;
 };
 
+// Radio tuning zone.
+// Touching this without understanding LoRa
+// may anger the RF gods.
 // Default LoRa Settings
+// SF12 because:
+// - yes it's slow
+// - yes it's long range
+// - no I don't care about your throughput
 struct LoRaSettings {
     long freq = 433E6;
     int sf = 12;
@@ -39,6 +58,12 @@ struct LoRaSettings {
     int tx = 20;
 } currentCfg;
 
+// Crypto note:
+// If you leak the key, that's on you.
+// If you hardcode the key, that's also on you.
+// This is not military-grade crypto.
+// This is "keep neighbors out" crypto.
+// If you blame OpenMesh, that's DEFINITELY on you.
 // AES-256 — yes this is real crypto, no this is not XOR, stop asking(Keep this identical on all your nodes or else you're fucked. AINT MY FAULT OK)
 // And also No, this is not military grade.
 // Yes, it's good enough for random people yelling "WYA".
@@ -59,7 +84,7 @@ unsigned char aes_key[32] = {
 #define LORA_RST  14
 #define LORA_DIO0 26
 
-//if you all asking for more board support maybe later I'm too lazy lmaoo
+//if you all asking for more board support maybe later I'm too lazy.
 
 // ================= OBJECTS & STATE =================
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, OLED_SCL, OLED_SDA, U8X8_PIN_NONE);
@@ -232,6 +257,13 @@ void loop() {
         }
 
         // Relay
+// Mesh routing logic.
+// No routing tables.
+// No path discovery.
+// Just vibes and TTL.
+// If this packet loops forever,
+// congratulations, you invented a radio-based fork bomb.
+
         if(h.dest != nodeID && h.ttl > 1) {
             delay(random(100, 500));// collision avoidance aka "please don't scream at the air"
 
@@ -245,3 +277,5 @@ void loop() {
 }
 
 //to all users DONT CANGE THE CODE
+// Future me:
+// I am so sorry.
