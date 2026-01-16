@@ -1,3 +1,7 @@
+// OpenMesh Protocol v1
+// Simple on purpose.
+// If you want complexity, use something else.
+
 #pragma once
 #include <stdint.h>
 
