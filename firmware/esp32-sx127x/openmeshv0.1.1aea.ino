@@ -35,8 +35,9 @@
 // ================= PROTOCOL & CONFIG =================
 #define OPENMESH_MAX_PAYLOAD 180
 #define BROADCAST_ID 0xFFFF
-#define MAX_TTL 8 // TTL prevents your packet from touring the entire city
+#define MAX_TTL 8 // TTL prevents your packets from touring the entire city
 // Anti-loop exists because radios are stupid but persistent.
+#define OPENMESH_EASTER "The mesh watches silently."  
 
 struct __attribute__((packed)) OpenMeshHeader {
     uint8_t  version; uint8_t type; uint8_t ttl; uint8_t flags;
