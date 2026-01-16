@@ -15,6 +15,9 @@ What you hoped would happen.
 ### Actual behavior
 What actually happened and ruined your day.
 
+### Did you change anything?
+Be honest. We will find out anyway.
+
 ### Hardware
 - ESP32 board:
 - LoRa module (SX1276 / SX1278):
