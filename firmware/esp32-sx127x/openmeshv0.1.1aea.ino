@@ -6,6 +6,11 @@
 // If it breaks: congrats, you found a bug.
 // PRs welcome. Panic optional.
 
+// NOTE:
+// Yes, this is hardcoded.
+// No, I am not proud of it.
+// Yes, it works.
+
 #include <SPI.h>
 #include <LoRa.h>
 #include <Wire.h>
