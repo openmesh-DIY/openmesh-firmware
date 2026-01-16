@@ -1,5 +1,8 @@
+// OpenMesh firmware – experimental, DIY-first
+// Feel free to modify and improve under the project license.
+// If you make big changes, please document them clearly.
 //dont mess shit up ok i aint fixing it up
-//also if you want to modify this allow me to relicensed your "code"
+
 
 #include <SPI.h>
 #include <LoRa.h>
@@ -28,7 +31,7 @@ struct LoRaSettings {
     int tx = 20;
 } currentCfg;
 
-// AES Key (Keep this identical on all your nodes or else you're fuck. AINT MY FAULT OK)
+// AES Key (Keep this identical on all your nodes or else you're fucked. AINT MY FAULT OK)
 unsigned char aes_key[32] = {
   0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,
   0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,0x20
@@ -44,6 +47,8 @@ unsigned char aes_key[32] = {
 #define LORA_SS   5
 #define LORA_RST  14
 #define LORA_DIO0 26
+
+//if you all asking for more board support maybe later I'm too lazy lmaoo
 
 // ================= OBJECTS & STATE =================
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, OLED_SCL, OLED_SDA, U8X8_PIN_NONE);
