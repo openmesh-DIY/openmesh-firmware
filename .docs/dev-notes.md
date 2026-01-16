@@ -1,133 +1,164 @@
-# OpenMesh – Developer Notes
+# OpenMesh Dev Notes 🧠🔥
 
-This file contains internal notes, design decisions, hacks, and reminders.
-Not user documentation. Not API reference.
-If you are reading this, you are either a maintainer or very curious.
+These are internal notes.
+If you are reading this:
+- Welcome
+- You are now partially responsible
 
----
-
-## 🔧 Design Philosophy
-
-- Cheap hardware > perfect performance
-- Arduino-first, no RTOS dependency
-- Bluetooth Classic > BLE (simpler, debuggable)
-- LoRa CSS only (no FSK/OOK for now)
-- OLED must work without phone
-- Phone app is optional, not required
-
-This is **not** Meshtastic.
-This is OpenMesh: smaller, simpler, DIY-first.
+This file exists so future contributors understand:
+- Why things are the way they are
+- Why some things are NOT the way they “should be”
+- Why the maintainer occasionally sounds insane
 
 ---
 
-## 🧠 Why Things Are Done This Way
+## 🛠️ Design Philosophy
 
-### Why no GPS
-- Cost
-- Power
-- Most DIY users don’t need it
-- Node identity is enough
+OpenMesh is built on 4 core principles:
 
-### Why Bluetooth Classic (SPP)
-- Works with generic terminal apps
-- Easier debugging
-- Android friendly
+1. Cheap hardware > fancy features  
+2. Simple logic > “smart” magic  
+3. Offline-first > cloud brainrot  
+4. If it works, don’t touch it
+
+If a feature:
+- Requires expensive boards ❌
+- Requires internet ❌
+- Requires GPS ❌
+- Requires an account ❌
+
+It does NOT belong here.
+
+---
+
+## 🧱 Why This Code Looks Like This
+
+Yes, the code is:
+- Direct
+- Flat
+- Sometimes aggressive
+
+That is intentional.
+
+This firmware is designed so:
+- A beginner can read it
+- A hacker can modify it
+- A broke student can afford it
+
+If you want abstraction layers, dependency injection, and 500 files:
+➡️ Wrong repo.
+
+---
+
+## 🧪 About Stability
+
+This project is **experimental**.
+
+That means:
+- Things might break
+- Messages might drop
+- Nodes might reboot
+- Your friend might say “bro it doesn’t work”
+
+Congratulations.
+That’s called *radio*.
+
+---
+
+## 🕸️ Mesh Logic Notes
+
+- OpenMesh uses **TTL-based flooding**
+- No routing tables
+- No path discovery
+- No global state
+
+Why?
+
+Because:
+- Routing tables rot
+- Dynamic topology is pain
+- Flooding works and radios are slow anyway
+
+Future versions *may* improve this, but only if it stays simple.
+
+---
+
+## 🔐 Security Reality Check
+
+AES-256 is used.
+
+This means:
+- Casual eavesdroppers ❌
+- Curious neighbors ❌
+- Script kiddies ❌
+
+This does NOT protect you from:
+- Nation states
+- Physical access
+- Someone who steals your firmware + key
+- Yourself posting the key on GitHub
+
+If you need military-grade OPSEC:
+➡️ Stop using Arduino.
+
+---
+
+## 📡 Bluetooth Notes
+
+Bluetooth Classic (SPP) is used because:
+- It’s simple
+- It works everywhere
+- Terminal apps exist
 - No BLE pain
 
-### Why fixed AES key (for now)
-- Simplicity
-- Key management is hard
-- Will be replaced later with pairing / key exchange
+Yes, BLE is modern.
+No, we don’t care (yet).
 
 ---
 
-## 📡 LoRa Decisions
+## 🧩 Easter Eggs 🥚
 
-- Modulation: **LoRa CSS only**
-- No FHSS (CSS already robust)
-- Narrow bandwidth preferred
-- Slow + long range > fast + unstable
+If you found comments like:
+- “don’t mess this up”
+- “I’m too lazy”
+- “AIN’T MY FAULT”
 
-Default target:
-- SF12
-- 62.5 kHz BW
-- Max legal TX power
+Congratulations.
+You found developer morale boosters.
 
----
-
-## 🔁 Mesh Logic Notes
-
-- TTL-based forwarding
-- No routing tables yet
-- Anti-loop via recent msg ID cache
-- Broadcast floods are acceptable at small scale
-
-Known limitations:
-- Can stall under heavy traffic
-- No congestion control (yet)
-- No ack / retry system
+Do not remove them.
+They are load-bearing comments.
 
 ---
 
-## ⚠️ Known Dumb Stuff (TODO FIX)
+## 🚫 Things That Will Get Your PR Rejected
 
-- Message length fixed to 16 bytes (AES block)
-- No message fragmentation
-- OLED UI blocks during TX sometimes
-- Hardcoded pins
-- No board profiles
+- Adding GPS “because Meshtastic has it”
+- Adding cloud sync
+- Adding login systems
+- Adding AI (tbh idk why my friend added this)
+- Rewriting everything for ESP-IDF “for cleanliness”
+- Removing humor
 
-Yes, we know.
-No, it’s not a bug, it’s a roadmap.
-
----
-
-## 🛠 Planned v0.2+ Ideas
-
-- Fragmented messages
-- Board profiles (pins.h)
-- Per-node AES keys
-- Optional BLE mode
-- Better OLED layout
-- Config save/load via BT
-- Android app v1
+Yes, removing humor is a valid rejection reason.
 
 ---
 
-## 🧪 Debug Notes
+## ☕ Final Dev Rule
 
-- If messages “hang”: check TX power + BW
-- If OLED freezes: LoRa TX blocking
-- If nothing works: check wiring (always)
+If you’re about to add a feature:
+- Ask: does this help DIY users?
+- Ask: does this keep things cheap?
+- Ask: will this confuse beginners?
 
----
-
-## 💀 Rules for Contributors
-
-- Do NOT add complexity without reason
-- Do NOT break cheap hardware support
-- Do NOT assume everyone has fancy boards
-- If you change protocol, document it
+If the answer is “no”:
+➡️ Don’t add it.
 
 ---
 
-## 🧃 Maintainer Notes
+If this project blows up:
+- Nice
+If it doesn’t:
+- Still nice
 
-- This project was built fast, not perfect
-- Stability > features
-- DIY users come first
-
-If this ever becomes popular:
-- resist bloat
-- resist vendor lock-in
-- resist “enterprise” thinking
-
----
-
-## 🐸 Final Notes
-
-Yes, some code is ugly.
-Yes, it works anyway.
-
-If you can make it better without making it heavier:
-PR welcome.
+At least it exists.
