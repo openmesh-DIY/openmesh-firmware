@@ -16,6 +16,8 @@ This project exists so **normal people** can build mesh comms without:
 
 Notes:
 > OpenMesh is not perfect. Neither are you. That's fine.
+AND The default AES key is public and intended for testing only.
+Users must change it for real deployments.
 
 Phone is **optional**.  
 Nodes work **standalone** with OLED + buttons.
