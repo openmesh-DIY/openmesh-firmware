@@ -1,3 +1,6 @@
+//dont mess shit up ok i aint fixing it up
+//also if you want to modify this allow me to relicensed your "code"
+
 #include <SPI.h>
 #include <LoRa.h>
 #include <Wire.h>
@@ -25,7 +28,7 @@ struct LoRaSettings {
     int tx = 20;
 } currentCfg;
 
-// AES Key (Keep this identical on all your nodes)
+// AES Key (Keep this identical on all your nodes or else you're fuck. AINT MY FAULT OK)
 unsigned char aes_key[32] = {
   0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,
   0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,0x20
@@ -33,10 +36,10 @@ unsigned char aes_key[32] = {
 
 // ================= HARDWARE PINS =================
 #define BUTTON_PIN 13
-#define OLED_SDA 21  // IF BLACK SCREEN: Change to 4 for Heltec/TTGO
-#define OLED_SCL 22  // IF BLACK SCREEN: Change to 15 for Heltec/TTGO
-#define LORA_SCK  18
-#define LORA_MISO 19
+#define OLED_SDA 21  // IF BLACK SCREEN: Change to 4 for Hel- no
+#define OLED_SCL 22  // IF BLACK SCREEN: Change to 15 for Hel- nuh uh fuck them bro why you add this
+#define LORA_SCK  18 // WHY DONT YOU ADD MULTIPLE BOARD SUPPORT -R
+#define LORA_MISO 19 // BECAUSE IM LAZY - K
 #define LORA_MOSI 23
 #define LORA_SS   5
 #define LORA_RST  14
@@ -59,6 +62,8 @@ int knownCount = 0;
 int destIndex = 0; 
 enum UIState { UI_WORD, UI_DEST };
 UIState uiState = UI_WORD;
+
+//now you can edit this word list make sure it fits
 
 const char* rows[4][4] = {
   {"WYA","OTW","MOVIN","SUP"},{"GOOD","BUSY","ONLINE","IDLE"},
@@ -221,3 +226,5 @@ void loop() {
         }
     }
 }
+
+//to all users DONT CANGE THE CODE
