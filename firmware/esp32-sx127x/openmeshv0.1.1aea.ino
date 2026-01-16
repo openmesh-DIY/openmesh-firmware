@@ -150,6 +150,9 @@ void encrypt_and_send(const char* msg, uint16_t dest) {
     mbedtls_aes_context aes;
     mbedtls_aes_init(&aes);
     mbedtls_aes_setkey_enc(&aes, aes_key, 256);
+
+// Re-keying every packet wastes entropy more than it saves security.
+
     mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, 16, iv, input, output);
     mbedtls_aes_free(&aes);
 
