@@ -9,6 +9,9 @@ This project exists so **normal people** can build mesh comms without:
 - forced cloud
 - forced apps
 
+Notes:
+> OpenMesh is not perfect. Neither are you. That's fine.
+
 Phone is **optional**.  
 Nodes work **standalone** with OLED + buttons.
 
