@@ -7,7 +7,7 @@ This project exists because "cheap" shouldn't mean "locked down".
 -->
 
 ⚠️ Warning: This firmware may contain bugs, bad ideas, and questionable design decisions.
-If it works for you, great. If it doesn’t… welcome to DIY.
+If it works for you, great. If it doesn’t… welcome to DIY. Bluetooth messages are NOT end-to-end encrypted beyond the device.
 
 OpenMesh is a **cheap, DIY, Arduino-first LoRa mesh firmware** for ESP32 + SX127x radios.
 
