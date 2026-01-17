@@ -1,3 +1,25 @@
+/*
+ * OpenMesh v0.1.3ps (pre-stable)
+ * --------------------------------
+ * Works on real hardware.
+ * Survives RF noise.
+ * Does NOT tolerate stupidity.
+ *
+ * Known facts:
+ *  - Clean breadboards are fine
+ *  - Old / oxidized / cursed breadboards are RF sabotage
+ *  - Long wires = antennas you didn’t ask for
+ *
+ * If this breaks:
+ *  1) Check wiring
+ *  2) Check power
+ *  3) Check GND
+ *  4) Then read the code again, slowly
+ *  5) or don't use crusty breadboards
+ * If you "refactor" crypto or LoRa without understanding it,
+ * you didn't improve it — you removed correctness.
+ */
+
 #include <SPI.h>
 #include <LoRa.h>
 #include <Wire.h>
@@ -8,6 +30,12 @@
 #include "BluetoothSerial.h"
 
 // ================= FIXED CONFIG =================
+// These values are not decorative.
+// They exist because RF, timing, and entropy are real things.
+//
+// Changing random numbers until "it works"
+// is not engineering — it's gambling.
+
 #define BROADCAST_ID 0xFFFF
 #define MAX_TTL 8
 #define LORA_SYNCWORD 0x12
@@ -21,9 +49,39 @@ struct MeshMsg { char text[20]; uint32_t timestamp; bool isTX; bool active = fal
 struct __attribute__((packed)) OpenMeshHeader { uint8_t version; uint8_t ttl; uint16_t src; uint16_t dest; uint16_t msg_id; uint16_t payload_len; };
 
 // AES-256-GCM Key (FIXED: Added array brackets [])
+// AES-256-GCM mesh key
+// Same key on all nodes = same mesh
+// Different key = invisible nodes
+// This is not optional and not negotiable
+// Why AES-GCM?
+//  - Encryption + authentication in one shot
+//  - No DIY MAC spaghetti
+//  - No silent corruption
+//
+// Nonce / IV handling:
+//  - GCM doesn’t magically forgive reuse (don’t be stupid)
+//  - But it FAILS HONESTLY on desync
+//  - Wrong nonce = packet dropped, not hallucinated
+//
+// Translation:
+//  - I don’t have to hand-roll IV logic at 3 AM
+//  - I don’t have to debug “why does this decrypt but lie”
+//  - RF already hates me, crypto doesn’t need to join
+
 unsigned char mesh_key[] = {0x1A,0x2B,0x3C,0x4D,0x5E,0x6F,0x70,0x81,0x92,0xA3,0xB4,0xC5,0xD6,0xE7,0xF8,0x09,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF,0x00};
 
 // ================= HARDWARE PINS =================
+// Clean breadboards: OK
+// Cheap, old, loose breadboards: absolutely not OK
+//
+// Symptoms of bad breadboards:
+//  - Random packets
+//  - No RX
+//  - RX works only when you touch the wires
+//
+// That is not software.
+// That is physics laughing at you.
+
 #define BUTTON_PIN 13
 #define OLED_SDA 21
 #define OLED_SCL 22
@@ -52,6 +110,9 @@ uint16_t neighbors[5]; int neighborCount = 0;
 uint32_t seenMsgs[12]; int seenIdx = 0;
 
 // ================= LOGO BITMAP DATA =================
+
+// All 0x00 = you drew nothing.
+// OLED is honest. It shows exactly what you gave it.
 
 // FIXED: Added array brackets [] to the declaration
 const unsigned char PROGMEM openmesh_logo_bits[1024] = {
@@ -132,6 +193,13 @@ void addTerminal(const char* msg, bool tx) {
     terminal[MSG_COUNT-1].active = true;
 }
 
+// Full LoRa re-init on purpose.
+// RF state machines are fragile.
+// Partial reconfig = undefined behavior.
+//
+// If you think this is "inefficient",
+// you have never debugged RF at 2am.
+
 void applyLoRa() {
     LoRa.end();
     SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
@@ -147,6 +215,10 @@ void applyLoRa() {
 }
 
 void secure_send(const char* msg, uint16_t dest) {
+
+// Encrypts + sends a packet using AES-256-GCM
+
+
     int len = strlen(msg);
     uint8_t iv[IV_SIZE], tag[TAG_SIZE]; 
     // FIXED: Made ciphertext an array large enough for the message
@@ -170,6 +242,13 @@ void secure_send(const char* msg, uint16_t dest) {
 }
 
 // ================= UI SYSTEM =================
+
+// OLED is not decoration.
+// It's a debugging instrument.
+//
+// If OLED looks sane but RF doesn’t:
+//  - Your RF path is broken
+//  - The code is fine
 
 void drawUI() {
     u8g2.clearBuffer();
@@ -254,7 +333,17 @@ void setup() {
     nodeName = "CORE-" + String(nodeID, HEX); nodeName.toUpperCase();
     SerialBT.begin(nodeName);
 
-    // Initial Hardware Test with Auto-Exit
+    // Initial Hardware Test with
+ Auto-Exit
+// Boot-time hardware test
+// Fails fast, loudly, and honestly.
+//
+// If this hangs:
+//  - Wiring is wrong
+//  - Or power is trash
+//  - Or both
+//  - Or learn to use a proto PCB 
+
     uint32_t startTest = millis();
     while (millis() - startTest < 3000) { 
         u8g2.clearBuffer();
@@ -285,6 +374,16 @@ void setup() {
 
     applyLoRa(); addTerminal("MESH ONLINE", true);
 }
+
+// Main loop:
+//  - Poll button
+//  - Handle Bluetooth
+//  - Listen to the air
+//
+// If nothing happens:
+//  - Either nobody transmitted
+//  - Or your antenna is a lie
+//  - Or I forgot something to put here
 
 void loop() {
     button.tick(); handleBT();
