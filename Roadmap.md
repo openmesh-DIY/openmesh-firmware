@@ -1,163 +1,144 @@
-# OpenMesh Roadmap 🕸️
+# OpenMesh Roadmap
 
-This is a roadmap, not a promise.
-Things may change.
-Bugs will appear.
-Coffee will be consumed.
+This roadmap describes **intent**, not promises.
 
-OpenMesh exists because:
-- Expensive boards suck
-- Closed ecosystems suck
-- Overengineering sucks
+Dates are imaginary.  
+Features arrive when:
+- the hardware agrees
+- the RF gods allow it
+- and the maintainer isn’t questioning life choices at 3 AM
 
 ---
 
-## ✅ v0.1 – It Works (Mostly)
+## Phase 0 — It Boots (✅ Somehow)
 
-Status: **Pre-release, somehow alive**
+- [x] Device turns on
+- [x] OLED lights up instead of staying dead like my motivation
+- [x] LoRa transmits *something*
+- [x] AES-GCM encrypts without exploding
+- [x] Bluetooth works without pairing to the wrong device in the room
 
-### What we have
-- ESP32 + SX127x support
-- LoRa CSS (the good stuff)
-- Mesh forwarding (TTL-based, no magic)
-- Anti-loop protection (so it doesn’t scream forever)
-- Broadcast & directed messages
-- AES-256 encryption (don’t leak the key, bro)
-- Bluetooth Classic control (SPP like it’s 2012)
-- OLED UI for sending messages without a phone
-- Button-driven UI (one button, many regrets)
-- Auto-generated node names
-- Passive node discovery (no handshakes, just vibes)
-
-### Known pain points
-- Messages are short (say it faster)
-- No delivery confirmation (trust issues)
-- Blocking TX (yes, it freezes sometimes)
-- Pins are hardcoded (future-you problem)
-- No routing logic (YOLO flood)
+Status:  
+**Barely stable, but confident enough to show friends.**
 
 ---
 
-## 🔧 v0.2 – Make It Not Annoying
+## Phase 1 — Usable Without Crying (Current)
 
-Goal: **Stability before flexing**
+- [x] Encrypted LoRa messaging
+- [x] Broadcast + node IDs
+- [x] RSSI / SNR display
+- [x] Modem presets (speed > range, because patience is overrated)
+- [x] Boot-time hardware test that fails fast and judges you silently
+- [x] Bluetooth CLI for people who hate buttons
 
-### Firmware
-- Non-blocking LoRa TX (OLED no longer stuck on “sending…”)
-- Message queueing (patience simulator removed)
-- OLED UI cleanup (so text actually fits)
-- Node name config via Bluetooth
-- Save LoRa settings to flash
-- Board pin profiles (`pins.h`) so people stop yelling
-- Cleaner code organization (less chaos)
-
-### Mesh
-- Better duplicate detection
-- Tunable relay delay (less packet screaming)
-- TTL sanity improvements
+Known issues:
+- RF noise exists
+- Breadboards lie
+- USB power is emotional
+- Antennas are either amazing or pure fiction
 
 ---
 
-## 🔐 v0.3 – Stop Trusting Everyone
+## Phase 2 — Mesh, But Not “Blockchain Bro” Mesh
 
-Goal: **Security that isn’t fake**
+Planned:
+- [ ] Smarter relay logic (less echo, more signal)
+- [ ] TTL handling that doesn’t feel drunk
+- [ ] Neighbor table cleanup (ghost nodes begone)
+- [ ] Message deduplication that actually works
+- [ ] Optional relay disable (because sometimes you don’t want to help)
 
-### Firmware
-- Variable-length messages
-- Fragmentation & reassembly (long texts finally allowed)
-- Per-node keys (optional)
-- Optional pairing-based key exchange
-- Protocol version checks (no mystery packets)
-
-### Protocol
-- OpenMesh Protocol v1
-- Message types
-- Flags that actually mean something
-- Backward compatibility (hopefully)
+Non-goals:
+- Trustless consensus
+- Tokenomics
+- Whitepapers
+- Anything involving the word “immutable”
 
 ---
 
-## 📱 v0.4 – Phone App (No GPS, Chill)
+## Phase 3 — UX Without Selling Your Soul
 
-Goal: **Actually usable ecosystem**
+Planned:
+- [ ] Cleaner UI
+- [ ] Less menu diving
+- [ ] More “this makes sense”
+- [ ] Fewer “why is it doing that?” moments
 
-### Android App
-- Bluetooth Classic connection
-- Node list
-- Chat UI
-- LoRa config sliders
-- Mesh info & hop count
-- No GPS tracking
-- No cloud
-- No account
-- No ads
-- No bullshit
+Maybe:
+- [ ] Config profiles
+- [ ] Saved presets
+- [ ] Settings that persist across reboots (wild concept)
 
-### Firmware
-- Structured BT command protocol
-- JSON responses (apps love JSON)
-- Optional headless mode (no OLED)
+Still no:
+- Touchscreens
+- Mobile apps
+- Cloud dashboards
+- Subscriptions (absolutely not)
 
 ---
 
-## 🌐 v0.5 – Bigger Mesh, Less Noise
+## Phase 4 — Security Improvements (Realistic Edition)
 
-Goal: **Scaling without melting the air**
+Planned:
+- [ ] Better replay resistance
+- [ ] Cleaner nonce handling
+- [ ] Optional key separation
+- [ ] Fewer foot-guns, same freedom
 
-### Mesh
-- Reduced broadcast flooding
-- Smarter relay logic
-- Optional store-and-forward
-- Congestion handling (radio breathing room)
+Not planned:
+- Automatic key exchange
+- PKI
+- Certificates
+- Anything that turns this into a PhD thesis
 
-### Firmware
-- Power-saving modes
-- Sleep support
-- Battery awareness
-- Less heat, less pain
-
----
-
-## 🚀 v1.0 – Stable DIY Mesh™
-
-Goal: **It just works**
-
-- Stable protocol
-- Documented firmware
-- Usable Android app
-- Multiple board profiles
-- Predictable behavior
-- No surprise features
-
-Still not enterprise.
-Still not commercial.
-Still DIY as hell.
+Security goal:
+**Good enough for reality, not good enough for a spy movie.**
 
 ---
 
-## ❌ Things We Are Not Doing
+## Phase 5 — “Why Does This Exist?” Features
 
-OpenMesh will NOT:
-- Require GPS
-- Require internet
-- Require accounts
-- Require cloud services
-- Lock hardware
-- Hide protocols
-- Turn into a crypto project
-- Add AI (bro please no)
+Possible:
+- [ ] Noise floor scanner
+- [ ] RF debugging modes
+- [ ] Passive monitor mode
+- [ ] “Is the air dead or am I?” indicators
+
+Definitely not:
+- AI-powered routing
+- Machine learning
+- Neural meshes
+- Any feature that requires explaining to investors
 
 ---
 
-## 🧠 Final Notes
+## Long-Term Philosophy
 
-If a feature:
-- Makes hardware expensive ❌
-- Makes code unreadable ❌
-- Makes users confused ❌
+OpenMesh will:
+- Favor simplicity over cleverness
+- Prefer honesty over magic
+- Fail loudly instead of lying quietly
 
-It probably won’t be added.
+OpenMesh will not:
+- Babysit you
+- Protect you from yourself
+- Pretend RF is deterministic
+- Make bad antennas good
 
-Cheap.
-Simple.
-Open.
+---
+
+## Final Notes
+
+If this roadmap feels vague:
+- Good
+- That means it’s honest
+
+If something isn’t here:
+- Either it’s unnecessary
+- Or it sounded cool at 2 AM and got deleted at 2:05
+
+Roadmaps change.  
+Physics doesn’t.
+
+Proceed accordingly.
