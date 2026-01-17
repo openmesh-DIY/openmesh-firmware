@@ -4,35 +4,43 @@
 
 OpenMesh is an **experimental, DIY-first project**.
 
-Only the **latest release** is considered supported.
+Only the **latest release** is considered supported.  
+Everything else is archaeology.
 
 Older versions may:
 - contain known vulnerabilities
 - lack fixes
-- reflect bad decisions from the past
+- reflect bad ideas that made sense at 3 AM
 
 | Version | Supported |
 |--------|-----------|
 | Latest | ✅ |
-| Older | ❌ (I guess so...) |
+| Older | ❌ (I guess so…) |
 
 ---
 
-## Threat Model (Please Read Before Getting Creative)
+## Threat Model (Read This Before Doing Something Stupid)
 
 OpenMesh is designed for:
 - Hobbyists
 - DIY users
 - Offline communication
 - Low-cost hardware
-- People who enjoy understanding their tools
+- People who like knowing *how* things work
+- Camping (yes, actually useful outside your bedroom)
 
 It is **NOT** designed for:
 - Military operations
 - High-risk activism
 - Life-or-death coordination
 - Nation-state threat models
-- Anyone whose plan includes the phrase “but it should be secure enough”
+- Anyone whose plan includes  
+  > “but it should be secure enough”
+
+(Still good for camping though.  
+Just make sure your phone battery is charged —  
+for communication.  
+Obviously..)
 
 If your safety depends on this firmware:
 
@@ -40,7 +48,7 @@ If your safety depends on this firmware:
 Re-evaluate.  
 Breathe.**
 
-Then choose a system designed for that level of risk.
+Then pick a system that was built for that level of risk.
 
 ---
 
@@ -71,7 +79,7 @@ Then choose a system designed for that level of risk.
 
 - AES-256 is used for payload encryption
 - Keys are static and shared between nodes
-- Key management is manual by design
+- Key management is **manual by design**
 
 This means:
 - All nodes must use the same key
@@ -81,6 +89,14 @@ This means:
 
 Security here is **practical**, not ceremonial.
 
+If you want:
+- key servers
+- automatic rotation
+- zero trust
+- magic
+
+You are in the wrong repo.
+
 ---
 
 ## Bluetooth Security
@@ -89,12 +105,12 @@ Bluetooth Classic (SPP) is used.
 
 Assume:
 - Anyone paired can send commands
-- Anyone with access can read messages
-- Pairing is a trust decision, not a suggestion
+- Anyone paired can read messages
+- Pairing is a **trust decision**, not a suggestion
 
 If you expose your node to untrusted devices:
 that is not a vulnerability,
-that is a life choice.
+that is a lifestyle choice.
 
 ---
 
@@ -104,7 +120,7 @@ If you find a security issue:
 
 1. **Do NOT open a public issue**
 2. Contact the maintainer privately
-3. Provide:
+3. Include:
    - Firmware version
    - Hardware used
    - Steps to reproduce
@@ -113,18 +129,20 @@ If you find a security issue:
 Please do not:
 - Drop zero-days in GitHub issues
 - Post exploits on social media
-- Start sentences with “I didn’t test this but…”
+- Start sentences with  
+  > “I didn’t test this but…”
 
 ---
 
 ## Scope Clarification
 
-The following are **not** considered vulnerabilities:
+The following are **NOT** considered vulnerabilities:
+
 - RF being interceptable
 - Mesh relays seeing metadata
 - Someone flashing their own firmware
 - You losing your device
-- You sharing your AES key in Discord
+- You pasting your AES key into Discord
 
 ---
 
