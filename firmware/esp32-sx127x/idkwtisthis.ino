@@ -1,8 +1,8 @@
-/*
- * OpenMesh v0.1.3ps (pre-stable)
- * ACK + TRUE RSSI edition
- * --------------------------------
- * Minimal surgery. No rewrites.
+/*  OpenMesh v0.1.3ps (pre-stable)
+ *  --------------------------------
+ *  Works on real hardware.
+ *  Survives RF noise.
+ *  Does NOT tolerate stupidity.
  */
 
 #include <SPI.h>
@@ -15,7 +15,6 @@
 #include "BluetoothSerial.h"
 
 // ================= FIXED CONFIG =================
-
 #define BROADCAST_ID 0xFFFF
 #define MAX_TTL 8
 #define LORA_SYNCWORD 0x12
@@ -23,11 +22,15 @@
 #define TAG_SIZE 16
 #define MSG_COUNT 4
 
-#define PKT_DATA 1
-#define PKT_ACK  2
+#define PKT_DATA 0x01
+#define PKT_ACK  0x02
+
+#define ACK_TIMEOUT 600
+#define ACK_RETRY_MAX 3
 
 enum Preset { LONG_SLOW, LONG_FAST, MED_FAST, SHORT_FAST };
 
+// ================= STRUCTS =================
 struct MeshMsg {
   char text[20];
   uint32_t timestamp;
@@ -36,16 +39,31 @@ struct MeshMsg {
 };
 
 struct __attribute__((packed)) OpenMeshHeader {
-  uint8_t  version;
-  uint8_t  ttl;
+  uint8_t version;
+  uint8_t type;
+  uint8_t ttl;
   uint16_t src;
   uint16_t dest;
   uint16_t msg_id;
   uint16_t payload_len;
-  uint8_t  type;
 };
 
-// AES-256-GCM KEY
+struct PendingTX {
+  uint16_t msg_id;
+  uint16_t dest;
+  char payload[20];
+  uint8_t retries;
+  uint32_t lastSend;
+  bool active;
+};
+
+struct Neighbor {
+  uint16_t id;
+  int rssi;
+  uint32_t lastSeen;
+};
+
+// ================= AES KEY =================
 unsigned char mesh_key[] = {
   0x1A,0x2B,0x3C,0x4D,0x5E,0x6F,0x70,0x81,
   0x92,0xA3,0xB4,0xC5,0xD6,0xE7,0xF8,0x09,
@@ -54,7 +72,6 @@ unsigned char mesh_key[] = {
 };
 
 // ================= HARDWARE =================
-
 #define BUTTON_PIN 13
 #define OLED_SDA 21
 #define OLED_SCL 22
@@ -70,11 +87,9 @@ OneButton button(BUTTON_PIN, true);
 BluetoothSerial SerialBT;
 
 // ================= STATE =================
-
 uint16_t nodeID;
 String nodeName;
 
-int menuIdx = 0;
 Preset currentP = LONG_SLOW;
 long freq = 433000000L;
 
@@ -85,27 +100,32 @@ uint32_t txPkts = 0;
 uint32_t rxPkts = 0;
 
 MeshMsg terminal[MSG_COUNT];
-
-uint16_t neighbors[5];
+PendingTX pending[4];
+Neighbor neighbors[5];
 int neighborCount = 0;
 
-// ACK tracking
-uint16_t waitingAck = 0;
-uint32_t ackTimer = 0;
+// ================= SEEN CACHE =================
+uint32_t seenMsgs[16];
+uint8_t seenIdx = 0;
 
-// ================= TERMINAL =================
+bool seen_before(uint16_t src, uint16_t msg_id) {
+  uint32_t key = ((uint32_t)src << 16) | msg_id;
+  for (int i = 0; i < 16; i++) {
+    if (seenMsgs[i] == key) return true;
+  }
+  seenMsgs[seenIdx++] = key;
+  if (seenIdx >= 16) seenIdx = 0;
+  return false;
+}
 
+// ================= UTILS =================
 void addTerminal(const char* msg, bool tx) {
-  for (int i = 0; i < MSG_COUNT - 1; i++)
-    terminal[i] = terminal[i + 1];
-
+  for (int i = 0; i < MSG_COUNT - 1; i++) terminal[i] = terminal[i + 1];
   strncpy(terminal[MSG_COUNT - 1].text, msg, 19);
   terminal[MSG_COUNT - 1].timestamp = millis();
   terminal[MSG_COUNT - 1].isTX = tx;
   terminal[MSG_COUNT - 1].active = true;
 }
-
-// ================= LORA CONFIG =================
 
 void applyLoRa() {
   LoRa.end();
@@ -113,10 +133,19 @@ void applyLoRa() {
   LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
   if (!LoRa.begin(freq)) return;
 
-  if (currentP == LONG_SLOW)   { LoRa.setSpreadingFactor(12); LoRa.setSignalBandwidth(62500); }
-  if (currentP == LONG_FAST)   { LoRa.setSpreadingFactor(11); LoRa.setSignalBandwidth(250000); }
-  if (currentP == MED_FAST)    { LoRa.setSpreadingFactor(9);  LoRa.setSignalBandwidth(250000); }
-  if (currentP == SHORT_FAST)  { LoRa.setSpreadingFactor(7);  LoRa.setSignalBandwidth(250000); }
+  if (currentP == LONG_SLOW) {
+    LoRa.setSpreadingFactor(12);
+    LoRa.setSignalBandwidth(62500);
+  } else if (currentP == LONG_FAST) {
+    LoRa.setSpreadingFactor(11);
+    LoRa.setSignalBandwidth(250000);
+  } else if (currentP == MED_FAST) {
+    LoRa.setSpreadingFactor(9);
+    LoRa.setSignalBandwidth(250000);
+  } else {
+    LoRa.setSpreadingFactor(7);
+    LoRa.setSignalBandwidth(250000);
+  }
 
   LoRa.setCodingRate4(5);
   LoRa.setSyncWord(LORA_SYNCWORD);
@@ -124,31 +153,54 @@ void applyLoRa() {
   LoRa.receive();
 }
 
+// ================= RELAY =================
+void relay_packet(OpenMeshHeader& h,
+                  uint8_t* iv,
+                  uint8_t* tag,
+                  uint8_t* ciphertext,
+                  uint16_t len) {
+
+  if (h.ttl == 0) return;
+  if (h.src == nodeID) return;
+  if (seen_before(h.src, h.msg_id)) return;
+
+  h.ttl--;
+
+  LoRa.beginPacket();
+  LoRa.write((uint8_t*)&h, sizeof(h));
+  LoRa.write(iv, IV_SIZE);
+  LoRa.write(tag, TAG_SIZE);
+  LoRa.write(ciphertext, len);
+  LoRa.endPacket(true);
+  LoRa.receive();
+}
+
 // ================= CRYPTO SEND =================
-
-void secure_send(const uint8_t* data, int len, uint16_t dest, uint8_t type, uint16_t msg_id) {
-
-  uint8_t iv[IV_SIZE];
-  uint8_t tag[TAG_SIZE];
-  uint8_t ciphertext[128];
+void send_packet(uint8_t type, const char* msg, uint16_t dest, uint16_t msg_id) {
+  int len = strlen(msg);
+  uint8_t iv[IV_SIZE], tag[TAG_SIZE], ciphertext[64];
 
   for (int i = 0; i < IV_SIZE; i++) iv[i] = esp_random();
 
   mbedtls_gcm_context gcm;
   mbedtls_gcm_init(&gcm);
   mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, mesh_key, 256);
-  mbedtls_gcm_crypt_and_tag(
-    &gcm, MBEDTLS_GCM_ENCRYPT,
+  mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT,
     len, iv, IV_SIZE,
     NULL, 0,
-    data, ciphertext,
-    TAG_SIZE, tag
-  );
+    (const uint8_t*)msg,
+    ciphertext,
+    TAG_SIZE, tag);
   mbedtls_gcm_free(&gcm);
 
   OpenMeshHeader h = {
-    2, MAX_TTL, nodeID, dest,
-    msg_id, (uint16_t)len, type
+    2,
+    type,
+    MAX_TTL,
+    nodeID,
+    dest,
+    msg_id,
+    (uint16_t)len
   };
 
   LoRa.beginPacket();
@@ -160,105 +212,133 @@ void secure_send(const uint8_t* data, int len, uint16_t dest, uint8_t type, uint
   LoRa.receive();
 }
 
-// ================= UI =================
+// ================= SEND WITH ACK =================
+void secure_send(const char* msg, uint16_t dest) {
+  uint16_t mid = random(1, 65535);
 
-void drawUI() {
-  u8g2.clearBuffer();
-  u8g2.setDrawColor(1);
-  u8g2.drawBox(0,0,128,12);
-  u8g2.setDrawColor(0);
-  u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.setCursor(2,9);
-  u8g2.print(nodeName);
-  u8g2.setCursor(95,9);
-  u8g2.print(freq/1000000.0,1);
-  u8g2.setDrawColor(1);
-
-  for (int i = 0; i < MSG_COUNT; i++) {
-    if (!terminal[i].active) continue;
-    u8g2.setCursor(0, 25 + i * 10);
-    u8g2.print(terminal[i].isTX ? "TX:" : "RX:");
-    u8g2.setCursor(30, 25 + i * 10);
-    u8g2.print(terminal[i].text);
+  for (int i = 0; i < 4; i++) {
+    if (!pending[i].active) {
+      pending[i] = { mid, dest, "", 0, millis(), true };
+      strncpy(pending[i].payload, msg, 19);
+      break;
+    }
   }
 
-  u8g2.setCursor(0, 63);
-  u8g2.printf("RSSI:%d SNR:%.1f", lastRSSI, lastSNR);
-  u8g2.sendBuffer();
+  send_packet(PKT_DATA, msg, dest, mid);
+  txPkts++;
+  addTerminal(msg, true);
 }
 
-// ================= SETUP =================
+// ================= RX =================
+void handle_rx() {
+  int sz = LoRa.parsePacket();
+  if (sz < sizeof(OpenMeshHeader) + IV_SIZE + TAG_SIZE) return;
 
+  OpenMeshHeader h;
+  LoRa.readBytes((uint8_t*)&h, sizeof(h));
+
+  uint8_t iv[IV_SIZE], tag[TAG_SIZE], ciphertext[64], plaintext[64];
+  LoRa.readBytes(iv, IV_SIZE);
+  LoRa.readBytes(tag, TAG_SIZE);
+  LoRa.readBytes(ciphertext, h.payload_len);
+
+  lastRSSI = LoRa.packetRssi();
+  lastSNR  = LoRa.packetSnr();
+  rxPkts++;
+
+  if (seen_before(h.src, h.msg_id)) return;
+
+  mbedtls_gcm_context gcm;
+  mbedtls_gcm_init(&gcm);
+  mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, mesh_key, 256);
+
+  if (mbedtls_gcm_auth_decrypt(&gcm, h.payload_len,
+      iv, IV_SIZE, NULL, 0,
+      tag, TAG_SIZE,
+      ciphertext, plaintext) != 0) {
+    mbedtls_gcm_free(&gcm);
+    return;
+  }
+  mbedtls_gcm_free(&gcm);
+
+  plaintext[h.payload_len] = 0;
+
+  // ===== DATA =====
+  if (h.type == PKT_DATA) {
+
+    if (h.dest == nodeID || h.dest == BROADCAST_ID) {
+      addTerminal((char*)plaintext, false);
+      SerialBT.printf("IN [%04X]: %s\n", h.src, plaintext);
+
+      if (h.dest == nodeID) {
+        char ackbuf[2];
+        memcpy(ackbuf, &h.msg_id, 2);
+        send_packet(PKT_ACK, ackbuf, h.src, h.msg_id);
+      }
+    }
+
+    if (h.dest != nodeID) {
+      relay_packet(h, iv, tag, ciphertext, h.payload_len);
+    }
+  }
+
+  // ===== ACK (NO RELAY) =====
+  if (h.type == PKT_ACK && h.dest == nodeID) {
+    uint16_t acked;
+    memcpy(&acked, plaintext, 2);
+
+    for (int i = 0; i < 4; i++) {
+      if (pending[i].active && pending[i].msg_id == acked) {
+        pending[i].active = false;
+
+        bool found = false;
+        for (int n = 0; n < neighborCount; n++) {
+          if (neighbors[n].id == h.src) {
+            neighbors[n].rssi = lastRSSI;
+            neighbors[n].lastSeen = millis();
+            found = true;
+          }
+        }
+        if (!found && neighborCount < 5) {
+          neighbors[neighborCount++] = { h.src, lastRSSI, millis() };
+        }
+      }
+    }
+  }
+}
+
+// ================= RETRY =================
+void handle_retries() {
+  for (int i = 0; i < 4; i++) {
+    if (!pending[i].active) continue;
+    if (millis() - pending[i].lastSend > ACK_TIMEOUT) {
+      if (pending[i].retries >= ACK_RETRY_MAX) {
+        pending[i].active = false;
+        continue;
+      }
+      pending[i].retries++;
+      pending[i].lastSend = millis();
+      send_packet(PKT_DATA, pending[i].payload, pending[i].dest, pending[i].msg_id);
+    }
+  }
+}
+
+// ================= SETUP / LOOP =================
 void setup() {
-  u8g2.begin();
   Serial.begin(115200);
+  u8g2.begin();
 
   nodeID = (uint16_t)ESP.getEfuseMac();
   nodeName = "CORE-" + String(nodeID, HEX);
   nodeName.toUpperCase();
-
   SerialBT.begin(nodeName);
-
-  LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
-  if (!LoRa.begin(freq)) while (1);
 
   applyLoRa();
   addTerminal("MESH ONLINE", true);
-  drawUI();
 }
 
-// ================= LOOP =================
-
 void loop() {
-
-  int sz = LoRa.parsePacket();
-  if (sz >= sizeof(OpenMeshHeader) + IV_SIZE + TAG_SIZE) {
-
-    int rxRSSI = LoRa.packetRssi();
-    float rxSNR = LoRa.packetSnr();
-
-    OpenMeshHeader h;
-    LoRa.readBytes((uint8_t*)&h, sizeof(h));
-
-    uint8_t iv[IV_SIZE], tag[TAG_SIZE];
-    uint8_t ciphertext[128], plaintext[128];
-
-    LoRa.readBytes(iv, IV_SIZE);
-    LoRa.readBytes(tag, TAG_SIZE);
-    LoRa.readBytes(ciphertext, h.payload_len);
-
-    mbedtls_gcm_context gcm;
-    mbedtls_gcm_init(&gcm);
-    mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, mesh_key, 256);
-
-    if (mbedtls_gcm_auth_decrypt(
-          &gcm, h.payload_len,
-          iv, IV_SIZE,
-          NULL, 0,
-          tag, TAG_SIZE,
-          ciphertext, plaintext) == 0) {
-
-      if (h.type == PKT_ACK && h.msg_id == waitingAck) {
-        lastRSSI = (int8_t)plaintext[0];
-        lastSNR  = ((int8_t)plaintext[1]) / 2.0;
-        waitingAck = 0;
-      }
-
-      if (h.type == PKT_DATA) {
-        plaintext[h.payload_len] = 0;
-        addTerminal((char*)plaintext, false);
-        rxPkts++;
-
-        // SEND ACK WITH REAL RSSI
-        int8_t ackPayload[2] = {
-          (int8_t)rxRSSI,
-          (int8_t)(rxSNR * 2)
-        };
-        secure_send((uint8_t*)ackPayload, 2, h.src, PKT_ACK, h.msg_id);
-      }
-    }
-
-    mbedtls_gcm_free(&gcm);
-    drawUI();
-  }
+  button.tick();
+  handle_rx();
+  handle_retries();
 }
