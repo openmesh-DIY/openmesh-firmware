@@ -2,7 +2,23 @@
  * OpenMesh v0.1.4bsea1
 Yes it works
 with good hardware not bad ones
+ * Known facts:
+ *  - Clean breadboards are fine
+ *  - Old / oxidized / cursed breadboards are RF sabotage
+ *  - Long wires = antennas you didn’t ask for
+ *
+well it was stable..(kinda) but hey atleast it works I test it and I'm alive!
+ * If this breaks:
+ *  1) Check wiring
+ *  2) Check power
+ *  3) Check GND
+ *  4) Then read the code again, slowly
+ *  5) or don't use crusty breadboards
+ * If you "refactor" crypto or LoRa without understanding it,
+ * you didn't improve it — you removed correctness.
  */
+
+//I kinda fixed it in sure would be safe for camping
 
 #include <SPI.h>
 #include <LoRa.h>
@@ -41,6 +57,7 @@ struct __attribute__((packed)) OpenMeshHeader {
     uint8_t msg_type; // 0=DATA, 1=ACK
 };
 
+//don't change the aes key or yeah you'll regret it
 // AES-256-GCM Key
 unsigned char mesh_key[] = {
     0x1A,0x2B,0x3C,0x4D,0x5E,0x6F,0x70,0x81,0x92,0xA3,0xB4,0xC5,
@@ -49,6 +66,7 @@ unsigned char mesh_key[] = {
 };
 
 // ================= HARDWARE PINS =================
+/hardcoded if you change and doesn't work don't be mad lol
 #define BUTTON_PIN 13
 #define OLED_SDA 21
 #define OLED_SCL 22
@@ -72,7 +90,7 @@ float lastSNR = 0;
 uint32_t relayedCount = 0, txPkts = 0, rxPkts = 0;
 MeshMsg terminal[MSG_COUNT];
 
-//  MESH HOPPING: Enhanced neighbor tracking with RSSI
+//  MESH HOPPING: Enhanced neighbor tracking with RSSI(yes real )
 struct Neighbor {
     uint16_t node_id;
     int rssi;
