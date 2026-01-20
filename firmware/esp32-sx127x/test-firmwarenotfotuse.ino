@@ -21,6 +21,12 @@ with good hardware not bad ones
 #define TAG_SIZE 16
 #define MSG_COUNT 4
 
+// Protocol header.
+// Touch this and every node in the field will desync silently.
+// Version is here so future us can regret current decisions.
+// Fields are packed because padding is for people with RAM.
+// If this breaks, nothing logs it. Enjoy debugging RF.
+
 enum Preset { LONG_SLOW, LONG_FAST, MED_FAST, SHORT_FAST };
 struct MeshMsg { char text[20]; uint32_t timestamp; bool isTX; bool active = false; };
 
