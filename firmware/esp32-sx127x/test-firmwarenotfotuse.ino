@@ -1,9 +1,7 @@
 /*
- * OpenMesh v0.1.4ps (pre-stable) - WITH ACK/RETRY(the ack and ack retry is broken idk why is this shit is so ass) & PER-NEIGHBOR RSSI
- * --------------------------------
- * Works on real hardware.
- * Survives RF noise.
- * Does NOT tolerate stupidity.
+ * OpenMesh v0.1.4bsea1
+Yes it works
+with good hardware not bad ones
  */
 
 #include <SPI.h>
@@ -15,22 +13,18 @@
 #include <Preferences.h>
 #include "BluetoothSerial.h"
 
-// ================= FIXED CONFIG =================
+// ================= CONFIG =================
 #define BROADCAST_ID 0xFFFF
 #define MAX_TTL 8
 #define LORA_SYNCWORD 0x12
 #define IV_SIZE 12
 #define TAG_SIZE 16
 #define MSG_COUNT 4
-#define MAX_RETRIES 3
-#define ACK_TIMEOUT 2000
-#define MAX_NEIGHBORS 5
 
 enum Preset { LONG_SLOW, LONG_FAST, MED_FAST, SHORT_FAST };
-enum PacketType { PKT_DATA = 0, PKT_ACK = 1 };
-
 struct MeshMsg { char text[20]; uint32_t timestamp; bool isTX; bool active = false; };
 
+//  MESH HOPPING: Added msg_type to header for ACK system
 struct __attribute__((packed)) OpenMeshHeader { 
     uint8_t version; 
     uint8_t ttl; 
@@ -38,26 +32,15 @@ struct __attribute__((packed)) OpenMeshHeader {
     uint16_t dest; 
     uint16_t msg_id; 
     uint16_t payload_len;
-    uint8_t packet_type; 
+    uint8_t msg_type; // 0=DATA, 1=ACK
 };
 
-struct Neighbor {
-    uint16_t nodeID;
-    int lastRSSI;
-    uint32_t lastSeen;
-    bool active;
+// AES-256-GCM Key
+unsigned char mesh_key[] = {
+    0x1A,0x2B,0x3C,0x4D,0x5E,0x6F,0x70,0x81,0x92,0xA3,0xB4,0xC5,
+    0xD6,0xE7,0xF8,0x09,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,
+    0x99,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF,0x00
 };
-
-struct PendingACK {
-    uint16_t msg_id;
-    uint16_t dest;
-    char payload[100];
-    uint8_t retryCount;
-    uint32_t lastTry;
-    bool active;
-};
-
-unsigned char mesh_key[] = {0x1A,0x2B,0x3C,0x4D,0x5E,0x6F,0x70,0x81,0x92,0xA3,0xB4,0xC5,0xD6,0xE7,0xF8,0x09,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF,0x00};
 
 // ================= HARDWARE PINS =================
 #define BUTTON_PIN 13
@@ -74,141 +57,73 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, OLED_SCL, OLED_
 OneButton button(BUTTON_PIN, true);
 BluetoothSerial SerialBT;
 
-uint16_t nodeID; 
-String nodeName;
-int menuIdx = 0; 
-Preset currentP = LONG_SLOW;
+// System State
+uint16_t nodeID; String nodeName;
+int menuIdx = 0; Preset currentP = LONG_SLOW;
 long freq = 433000000L;
 int lastRSSI = -128, noiseFloor = -128;
 float lastSNR = 0;
 uint32_t relayedCount = 0, txPkts = 0, rxPkts = 0;
 MeshMsg terminal[MSG_COUNT];
 
-Neighbor neighbors[MAX_NEIGHBORS];
+//  MESH HOPPING: Enhanced neighbor tracking with RSSI
+struct Neighbor {
+    uint16_t node_id;
+    int rssi;
+    float snr;
+    uint32_t last_seen;
+    bool active;
+};
+Neighbor neighbors[10];
 int neighborCount = 0;
 
-PendingACK pendingACKs[5];
-int pendingACKCount = 0;
-
-uint16_t seenMsgs[30]; 
+//  MESH HOPPING: Message deduplication
+uint32_t seenMsgs[50];
 int seenIdx = 0;
-
-uint32_t acksSent = 0;          // These must be defined here so 
-uint32_t acksReceived = 0;      // the rest of the code can see them
-uint32_t retriesSent = 0;       //if you got lost in the forest you probably forget to define this pls its serious
-
-// ================= LOGO BITMAP DATA =================
-const unsigned char PROGMEM openmesh_logo_bits[1024] = {
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xE0,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xF0,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xF4,0x13,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xE7,0x71,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0xC0,0x33,0xE6,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0xF0,0x38,0x86,0x03,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x78,0x18,0x0C,0x0F,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x1E,0x0C,0x1C,0x3C,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x84,0x07,0x0C,0x18,0xF0,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x9F,0x01,0x06,0x30,0xC0,0x7C,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0x31,0x00,0x07,0x20,0x00,0xE6,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0x31,0x00,0x1B,0x60,0x00,0xC6,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0x31,0x00,0x18,0x00,0x00,0xC6,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0x3B,0x00,0x18,0x00,0x00,0xEE,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x1F,0x00,0x18,0x00,0x00,0x7C,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x06,0x00,0x18,0x00,0x00,0x18,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x04,0x00,0x1C,0x00,0x00,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x06,0x00,0xFE,0x3F,0x00,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x00,0x06,0x30,0x00,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x00,0x06,0x30,0x00,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x00,0x46,0x34,0x00,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x04,0xE6,0x34,0x10,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x06,0xB6,0x32,0x30,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x07,0x96,0x33,0x70,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x03,0x16,0x31,0x60,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x8E,0x01,0x06,0x30,0xC0,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x8E,0x01,0x06,0x30,0xC0,0x11,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0xCE,0x00,0x06,0x30,0x80,0x11,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x6E,0x00,0x06,0x30,0x00,0x13,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x64,0x00,0xFE,0x3F,0x00,0x13,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x30,0x00,0x00,0x00,0x00,0x02,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x0E,0x00,0x00,0x00,0x00,0x38,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x1F,0x00,0x00,0x00,0x00,0x7C,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0x31,0x00,0x80,0x00,0x00,0xC6,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0xB1,0xFF,0xDF,0xFC,0xFF,0xC6,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0x31,0xFF,0xDF,0xFC,0x7F,0xC6,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x80,0x3B,0x00,0xC0,0x00,0x00,0xFE,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x9F,0x01,0xC0,0x00,0xC0,0x7D,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x84,0x07,0xC0,0x00,0xF0,0x10,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x0E,0xC0,0x00,0x3C,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x38,0xC0,0x00,0x0E,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0xF0,0xC0,0x80,0x07,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0xC0,0x03,0xE0,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xC7,0x71,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xE4,0x13,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xF0,0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xE0,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
-};
 
 // ================= CORE FUNCTIONS =================
 
 void addTerminal(const char* msg, bool tx) {
     for (int i = 0; i < MSG_COUNT - 1; i++) terminal[i] = terminal[i+1];
     strncpy(terminal[MSG_COUNT-1].text, msg, 19);
+    terminal[MSG_COUNT-1].text[19] = '\0';
     terminal[MSG_COUNT-1].timestamp = millis();
     terminal[MSG_COUNT-1].isTX = tx;
     terminal[MSG_COUNT-1].active = true;
 }
 
-void updateNeighborRSSI(uint16_t srcID, int rssi) {
-    for(int i = 0; i < neighborCount; i++) {
-        if(neighbors[i].nodeID == srcID && neighbors[i].active) {
-            neighbors[i].lastRSSI = rssi;
-            neighbors[i].lastSeen = millis();
+//  MESH HOPPING: Check if message already seen
+bool isMsgSeen(uint16_t msgId) {
+    for (int i = 0; i < 50; i++) {
+        if (seenMsgs[i] == msgId) return true;
+    }
+    return false;
+}
+
+//  MESH HOPPING: Add message to seen list
+void addSeenMsg(uint16_t msgId) {
+    seenMsgs[seenIdx] = msgId;
+    seenIdx = (seenIdx + 1) % 50;
+}
+
+//  MESH HOPPING: Update neighbor with RSSI
+void updateNeighbor(uint16_t nodeId, int rssi, float snr) {
+    for (int i = 0; i < neighborCount; i++) {
+        if (neighbors[i].node_id == nodeId) {
+            neighbors[i].rssi = rssi;
+            neighbors[i].snr = snr;
+            neighbors[i].last_seen = millis();
+            neighbors[i].active = true;
             return;
         }
     }
-    if(neighborCount < MAX_NEIGHBORS) {
-        neighbors[neighborCount].nodeID = srcID;
-        neighbors[neighborCount].lastRSSI = rssi;
-        neighbors[neighborCount].lastSeen = millis();
+    if (neighborCount < 10) {
+        neighbors[neighborCount].node_id = nodeId;
+        neighbors[neighborCount].rssi = rssi;
+        neighbors[neighborCount].snr = snr;
+        neighbors[neighborCount].last_seen = millis();
         neighbors[neighborCount].active = true;
         neighborCount++;
-    }
-}
-
-void sendACK(uint16_t dest, uint16_t msg_id) {
-    OpenMeshHeader h = {2, 1, nodeID, dest, msg_id, 0, PKT_ACK}; 
-    LoRa.beginPacket();
-    LoRa.write((uint8_t*)&h, sizeof(h));
-    LoRa.endPacket(true); 
-    LoRa.receive();
-    acksSent++;
-}
-
-void handleACK(uint16_t msg_id) {
-    for(int i = 0; i < 5; i++) {
-        if(pendingACKs[i].active && pendingACKs[i].msg_id == msg_id) {
-            pendingACKs[i].active = false;
-            acksReceived++;
-            SerialBT.printf("ACK [%04X] confirmed\n", msg_id);
-            return;
-        }
     }
 }
 
@@ -228,8 +143,8 @@ void applyLoRa() {
 
 void secure_send(const char* msg, uint16_t dest) {
     int len = strlen(msg);
-    uint8_t iv[IV_SIZE], tag[TAG_SIZE], ciphertext[100];
-    uint16_t msg_id = (uint16_t)random(0, 65535);
+    uint8_t iv[IV_SIZE], tag[TAG_SIZE]; 
+    uint8_t ciphertext[100];
 
     for(int i=0; i<IV_SIZE; i++) iv[i] = esp_random() % 256;
 
@@ -238,7 +153,9 @@ void secure_send(const char* msg, uint16_t dest) {
     mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, len, iv, IV_SIZE, NULL, 0, (const uint8_t*)msg, ciphertext, TAG_SIZE, tag);
     mbedtls_gcm_free(&gcm);
 
-    OpenMeshHeader h = {2, MAX_TTL, nodeID, dest, msg_id, (uint16_t)len, PKT_DATA};
+    //  MESH HOPPING: Include msg_type in header
+    OpenMeshHeader h = {2, MAX_TTL, nodeID, dest, (uint16_t)random(0, 65535), (uint16_t)len, 0}; // msg_type=0 for DATA
+    
     LoRa.beginPacket();
     LoRa.write((uint8_t*)&h, sizeof(h)); 
     LoRa.write(iv, IV_SIZE); 
@@ -248,36 +165,9 @@ void secure_send(const char* msg, uint16_t dest) {
     LoRa.receive();
     txPkts++; 
     addTerminal(msg, true);
-    
-    if(dest != BROADCAST_ID) {
-        for(int i = 0; i < 5; i++) {
-            if(!pendingACKs[i].active) {
-                pendingACKs[i].msg_id = msg_id;
-                pendingACKs[i].dest = dest;
-                strncpy(pendingACKs[i].payload, msg, 99);
-                pendingACKs[i].retryCount = 0;
-                pendingACKs[i].lastTry = millis();
-                pendingACKs[i].active = true;
-                break;
-            }
-        }
-    }
 }
 
-void checkRetries() {
-    uint32_t now = millis();
-    for(int i = 0; i < 5; i++) {
-        if(!pendingACKs[i].active) continue;
-        if(now - pendingACKs[i].lastTry > ACK_TIMEOUT) {
-            if(pendingACKs[i].retryCount < MAX_RETRIES) {
-                secure_send(pendingACKs[i].payload, pendingACKs[i].dest);
-                pendingACKs[i].retryCount++;
-                pendingACKs[i].lastTry = now;
-                retriesSent++;
-            } else { pendingACKs[i].active = false; }
-        }
-    }
-}
+// ================= UI SYSTEM =================
 
 void drawUI() {
     u8g2.clearBuffer();
@@ -303,29 +193,30 @@ void drawUI() {
         u8g2.drawFrame(10, 35, 108, 10); u8g2.drawBox(10, 35, constrain(bar,0,108), 10);
         u8g2.setCursor(10, 55); u8g2.printf("LIVE RSSI: %d dBm", lastRSSI);
     }
-    else if (menuIdx == 2) { // NEIGHBORS WITH RSSI
+    else if (menuIdx == 2) { //  MESH HOPPING: NEIGHBORS with RSSI
         u8g2.setCursor(2, 22); u8g2.print("NEIGHBORS:");
-        for(int i=0; i<neighborCount && i<4; i++) {
-            if(neighbors[i].active) {
-                u8g2.setCursor(10, 34+(i*9)); 
-                u8g2.printf("%04X:%ddBm", neighbors[i].nodeID, neighbors[i].lastRSSI);
-            }
+        for(int i = 0; i < neighborCount && i < 4; i++) {
+            u8g2.setCursor(10, 34 + (i * 9)); u8g2.printf("%04X RSSI:%d", neighbors[i].node_id, neighbors[i].rssi);
         }
     }
     else if (menuIdx == 3) { // PRESET SELECTOR
         u8g2.setCursor(2, 22); u8g2.print("MODEM PRESET:");
         const char* names[] = {"LONG-SLOW", "LONG-FAST", "MED-FAST", "SHRT-FAST"};
-        for(int i=0; i<4; i++) { u8g2.setCursor(10, 34+(i*8)); if(currentP == i) u8g2.print("[X] "); else u8g2.print("[ ] "); u8g2.print(names[i]); }
+        for(int i = 0; i < 4; i++) {
+            u8g2.setCursor(10, 34 + (i * 8)); 
+            if(currentP == i) u8g2.print("[X] "); else u8g2.print("[ ] "); 
+            u8g2.print(names[i]); 
+        }
     }
     else if (menuIdx == 4) { // REAL-TIME NOISE FLOOR
         u8g2.setCursor(2, 22); u8g2.print("NOISE SCAN:");
         u8g2.setFont(u8g2_font_logisoso16_tf); u8g2.setCursor(20, 50); u8g2.print(noiseFloor); u8g2.print(" dBm");
     }
-    else if (menuIdx == 5) { // TRAFFIC STATS WITH ACK/RETRY
+    else if (menuIdx == 5) { // TRAFFIC STATS
         u8g2.setCursor(2, 22); u8g2.print("STATS:");
-        u8g2.setCursor(10, 32); u8g2.printf("TX:%u RX:%u", txPkts, rxPkts);
-        u8g2.setCursor(10, 42); u8g2.printf("ACK TX:%u RX:%u", acksSent, acksReceived);
-        u8g2.setCursor(10, 52); u8g2.printf("RETRY:%u RLY:%u", retriesSent, relayedCount);
+        u8g2.setCursor(10, 35); u8g2.printf("TX PKTS: %u", txPkts);
+        u8g2.setCursor(10, 45); u8g2.printf("RX PKTS: %u", rxPkts);
+        u8g2.setCursor(10, 55); u8g2.printf("RELAYS : %u", relayedCount);
     }
     else if (menuIdx == 6) { // NODE HEALTH & HW TEST
         u8g2.setCursor(10, 25); u8g2.print("WIRING TEST: OK");
@@ -335,39 +226,39 @@ void drawUI() {
     u8g2.sendBuffer();
 }
 
+// ================= BLUETOOTH COMMANDS =================
+
 void handleBT() {
     if (!SerialBT.available()) return;
     String input = SerialBT.readStringUntil('\n'); input.trim();
     if (input.length() == 0) return;
 
     if (input.startsWith("/")) {
-        if (input == "/status") {
-            SerialBT.printf("RSSI:%d SNR:%.1f Freq:%ld\n", lastRSSI, lastSNR, freq);
-            SerialBT.printf("ACK TX:%u RX:%u RETRY:%u\n", acksSent, acksReceived, retriesSent);
-        }
+        if (input == "/status") SerialBT.printf("RSSI:%d SNR:%.1f Freq:%ld\n", lastRSSI, lastSNR, freq);
         else if (input.startsWith("/preset ")) {
             int p = input.substring(8).toInt();
-            if (p >= 0 && p <= 3) { currentP = (Preset)p; applyLoRa(); SerialBT.printf("Preset -> %d\n", p); drawUI(); }
-        }
-        else if (input.startsWith("/freq ")) {
-            freq = input.substring(6).toFloat() * 1000000L; applyLoRa(); SerialBT.printf("Freq set to %ld\n", freq); drawUI();
-        }
-        else if (input == "/id") SerialBT.printf("ID: %04X Name: %s\n", nodeID, nodeName.c_str());
-        else if (input == "/neighbors") {
-            SerialBT.println("Active neighbors:");
-            for(int i=0; i<neighborCount; i++) {
-                if(neighbors[i].active) {
-                    SerialBT.printf("  %04X: %d dBm (seen %lus ago)\n", 
-                        neighbors[i].nodeID, neighbors[i].lastRSSI, 
-                        (millis() - neighbors[i].lastSeen)/1000);
-                }
+            if (p >= 0 && p <= 3) { 
+                currentP = (Preset)p; 
+                applyLoRa(); 
+                SerialBT.printf("Preset -> %d\n", p); 
+                drawUI(); 
             }
         }
+        else if (input.startsWith("/freq ")) {
+            freq = input.substring(6).toFloat() * 1000000L; 
+            applyLoRa(); 
+            SerialBT.printf("Freq set to %ld\n", freq); 
+            drawUI();
+        }
+        else if (input == "/id") SerialBT.printf("ID: %04X Name: %s\n", nodeID, nodeName.c_str());
         else if (input == "/reboot") ESP.restart();
         return; 
     }
-    secure_send(input.c_str(), BROADCAST_ID); drawUI();
+    secure_send(input.c_str(), BROADCAST_ID); 
+    drawUI();
 }
+
+// ================= SETUP & LOOP =================
 
 void setup() {
     u8g2.begin();
@@ -376,14 +267,10 @@ void setup() {
     nodeName = "CORE-" + String(nodeID, HEX); nodeName.toUpperCase();
     SerialBT.begin(nodeName);
 
-    for(int i=0; i<MAX_NEIGHBORS; i++) neighbors[i].active = false;
-    for(int i=0; i<5; i++) pendingACKs[i].active = false;
-
-    // Boot Logo & HW Test
+    // Initial Hardware Test with Auto-Exit
     uint32_t startTest = millis();
     while (millis() - startTest < 3000) { 
         u8g2.clearBuffer();
-        u8g2.drawXBMP(0, 0, 128, 64, openmesh_logo_bits);
         u8g2.setFont(u8g2_font_4x6_tf);
         LoRa.setPins(5, 14, 26);
         if (!LoRa.begin(freq)) {
@@ -396,112 +283,115 @@ void setup() {
         delay(100); 
     }
     
+    u8g2.clearBuffer();
+
     button.attachClick([](){ 
-        if(menuIdx == 3) { currentP = (Preset)((currentP + 1) % 4); applyLoRa(); } 
-        else { menuIdx = (menuIdx + 1) % 7; } drawUI(); 
+        if(menuIdx == 3) { 
+            currentP = (Preset)((currentP + 1) % 4); 
+            applyLoRa(); 
+        } else { 
+            menuIdx = (menuIdx + 1) % 7; 
+        } 
+        drawUI(); 
     });
     button.attachDoubleClick([](){ menuIdx = (menuIdx + 1) % 7; drawUI(); });
-    button.attachLongPressStart([](){ freq += 1000000L; if(freq > 450000000L) freq = 410000000L; applyLoRa(); drawUI(); });
+    button.attachLongPressStart([](){ 
+        freq += 1000000L; 
+        if(freq > 450000000L) freq = 410000000L; 
+        applyLoRa(); 
+        drawUI(); 
+    });
 
-    applyLoRa(); addTerminal("MESH ONLINE", true);
+    applyLoRa(); 
+    addTerminal("MESH ONLINE", true);
+    drawUI();
 }
 
-// ================= DUPLICATE FILTER =================
-bool isSeen(uint16_t src, uint16_t msg) {
-    uint16_t sig = src ^ msg;
-    for (int i = 0; i < 30; i++) {
-        if (seenMsgs[i] == sig) return true;
-    }
-    seenMsgs[seenIdx] = sig;
-    seenIdx = (seenIdx + 1) % 30;
-    return false;
-}
-
-// ================= MAIN LOOP =================
 void loop() {
-    button.tick();
+    button.tick(); 
     handleBT();
-    checkRetries();
 
-    int packetLen = LoRa.parsePacket();
-    if (packetLen < sizeof(OpenMeshHeader)) goto ui;
+    noiseFloor = LoRa.packetRssi(); 
+    if (menuIdx == 4) drawUI(); 
 
-    lastRSSI = LoRa.packetRssi();
-    lastSNR  = LoRa.packetSnr();
-    rxPkts++;
+    //  MESH HOPPING: Enhanced packet processing
+    int sz = LoRa.parsePacket();
+    if (sz >= sizeof(OpenMeshHeader) + IV_SIZE + TAG_SIZE) {
+        lastRSSI = LoRa.packetRssi(); 
+        lastSNR = LoRa.packetSnr(); 
+        rxPkts++;
+        
+        OpenMeshHeader h; 
+        LoRa.readBytes((uint8_t*)&h, sizeof(h));
+        
+        //  MESH HOPPING: Check for duplicates
+        if (isMsgSeen(h.msg_id)) {
+            return; // Skip duplicate
+        }
+        addSeenMsg(h.msg_id);
+        
+        uint8_t iv[IV_SIZE], tag[TAG_SIZE];
+        uint8_t ciphertext[100], plaintext[101];
+        LoRa.readBytes(iv, IV_SIZE); 
+        LoRa.readBytes(tag, TAG_SIZE);
+        
+        int pLen = h.payload_len; 
+        if (pLen > 100) pLen = 100;
+        LoRa.readBytes(ciphertext, pLen);
 
-    OpenMeshHeader h;
-    LoRa.readBytes((uint8_t*)&h, sizeof(h));
-
-    updateNeighborRSSI(h.src, lastRSSI);
-
-    // ---------- ACK ----------
-    if (h.packet_type == PKT_ACK) {
-        if (h.dest == nodeID) handleACK(h.msg_id);
-        return;
-    }
-
-    // ---------- DUP CHECK ----------
-    if (isSeen(h.src, h.msg_id)) return;
-
-    // ---------- READ REMAINING PAYLOAD ----------
-    int remain = packetLen - sizeof(OpenMeshHeader);
-    uint8_t raw[200];
-    LoRa.readBytes(raw, remain);
-
-    // ---------- LOCAL PROCESS ----------
-    bool shouldProcess =
-        (h.dest == nodeID) ||
-        (h.dest == BROADCAST_ID);
-
-    if (shouldProcess && remain >= (IV_SIZE + TAG_SIZE)) {
-        uint8_t *iv  = raw;
-        uint8_t *tag = raw + IV_SIZE;
-        uint8_t *ct  = raw + IV_SIZE + TAG_SIZE;
-
-        uint8_t pt[100];
-        int pLen = h.payload_len;
-
-        mbedtls_gcm_context gcm;
+        mbedtls_gcm_context gcm; 
         mbedtls_gcm_init(&gcm);
         mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, mesh_key, 256);
-
-        if (mbedtls_gcm_auth_decrypt(
-                &gcm,
-                pLen,
-                iv, IV_SIZE,
-                NULL, 0,
-                tag, TAG_SIZE,
-                ct,
-                pt) == 0) {
-
-            pt[pLen] = 0;
-            addTerminal((char*)pt, false);
-            SerialBT.printf("IN [%04X]: %s\n", h.src, (char*)pt);
-
-            if (h.dest == nodeID)
-                sendACK(h.src, h.msg_id);
+        
+        if (mbedtls_gcm_auth_decrypt(&gcm, pLen, 
+                                     iv, IV_SIZE, NULL, 0, 
+                                     tag, TAG_SIZE, 
+                                     ciphertext, plaintext) == 0) {
+            plaintext[pLen] = '\0'; 
+            addTerminal((char*)plaintext, false);
+            SerialBT.printf("IN [%04X]: %s\n", h.src, (char*)plaintext);
+            
+            //  MESH HOPPING: Update neighbor info
+            updateNeighbor(h.src, lastRSSI, lastSNR);
+            
+            //  MESH HOPPING: RELAY MESSAGE
+            // Relay if TTL > 1 and not from us
+            if (h.ttl > 1 && h.src != nodeID && h.msg_type == 0) { // Only relay DATA messages
+                h.ttl--; // Decrement TTL
+                
+                // Re-transmit the packet
+                LoRa.beginPacket();
+                LoRa.write((uint8_t*)&h, sizeof(h));
+                LoRa.write(iv, IV_SIZE);
+                LoRa.write(tag, TAG_SIZE);
+                LoRa.write(ciphertext, pLen);
+                LoRa.endPacket(true);
+                LoRa.receive();
+                
+                relayedCount++;
+                SerialBT.printf(" RELAYED msg %04X, TTL: %d\n", h.msg_id, h.ttl);
+            }
         }
-        mbedtls_gcm_free(&gcm);
-    }
-
-    // ---------- MESH FORWARD (2-IN-1) ----------
-    if (h.ttl > 1 && h.src != nodeID) {
-        h.ttl--;
-
-        LoRa.beginPacket();
-        LoRa.write((uint8_t*)&h, sizeof(h));
-        LoRa.write(raw, remain);
-        LoRa.endPacket(true);
-        LoRa.receive();
-
-        relayedCount++;
-    }
-
-ui:
-    static uint32_t lastUI = 0;
-    if (millis() - lastUI > 3000) {
+        
+        mbedtls_gcm_free(&gcm); 
         drawUI();
-        lastUI = millis();
+    }
+    
+    static uint32_t lastUI = 0;
+    if (millis() - lastUI > 5000) { 
+        drawUI(); 
+        lastUI = millis(); 
+    }
+    
+    // Clean up old neighbors
+    for (int i = 0; i < neighborCount; i++) {
+        if (millis() - neighbors[i].last_seen > 300000) { // 5 minutes
+            neighbors[i].active = false;
+            for (int j = i; j < neighborCount - 1; j++) {
+                neighbors[j] = neighbors[j + 1];
+            }
+            neighborCount--;
+            i--;
+        }
     }
 }
