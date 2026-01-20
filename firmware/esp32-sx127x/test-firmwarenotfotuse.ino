@@ -406,69 +406,102 @@ void setup() {
     applyLoRa(); addTerminal("MESH ONLINE", true);
 }
 
+// ================= DUPLICATE FILTER =================
+bool isSeen(uint16_t src, uint16_t msg) {
+    uint16_t sig = src ^ msg;
+    for (int i = 0; i < 30; i++) {
+        if (seenMsgs[i] == sig) return true;
+    }
+    seenMsgs[seenIdx] = sig;
+    seenIdx = (seenIdx + 1) % 30;
+    return false;
+}
+
+// ================= MAIN LOOP =================
 void loop() {
-    button.tick(); 
+    button.tick();
     handleBT();
     checkRetries();
 
-    int sz = LoRa.parsePacket();
-    if (sz >= sizeof(OpenMeshHeader)) {
-        lastRSSI = LoRa.packetRssi(); 
-        lastSNR = LoRa.packetSnr(); 
-        rxPkts++;
+    int packetLen = LoRa.parsePacket();
+    if (packetLen < sizeof(OpenMeshHeader)) goto ui;
 
-        OpenMeshHeader h; 
-        LoRa.readBytes((uint8_t*)&h, sizeof(h));
+    lastRSSI = LoRa.packetRssi();
+    lastSNR  = LoRa.packetSnr();
+    rxPkts++;
 
-        // Bidirectional RSSI Update
-        updateNeighborRSSI(h.src, lastRSSI);
+    OpenMeshHeader h;
+    LoRa.readBytes((uint8_t*)&h, sizeof(h));
 
-        // Duplicate Check for Hopping
-        bool alreadySeen = false;
-        for(int i=0; i<30; i++) if(seenMsgs[i] == h.msg_id) alreadySeen = true;
-        if(alreadySeen && h.packet_type == PKT_DATA) return;
-        seenMsgs[seenIdx] = h.msg_id; seenIdx = (seenIdx + 1) % 30;
+    updateNeighborRSSI(h.src, lastRSSI);
 
-        if(h.packet_type == PKT_ACK) {
-            if(h.dest == nodeID) handleACK(h.msg_id);
-            return;
-        }
-        
-        // MESH FORWARDING (HOPPING)
-        if(h.dest != nodeID && h.dest != BROADCAST_ID && h.ttl > 1) {
-            h.ttl--;
-            uint8_t relayBuf[sz - sizeof(h)];
-            LoRa.readBytes(relayBuf, sizeof(relayBuf));
-            
-            LoRa.beginPacket();
-            LoRa.write((uint8_t*)&h, sizeof(h));
-            LoRa.write(relayBuf, sizeof(relayBuf));
-            LoRa.endPacket(true);
-            LoRa.receive();
-            relayedCount++;
-            return; 
-        }
-
-        // DECRYPTION & LOCAL PROCESSING
-        if(sz >= sizeof(OpenMeshHeader) + IV_SIZE + TAG_SIZE) {
-            uint8_t iv[IV_SIZE], tag[TAG_SIZE], ciphertext[100], plaintext[100];
-            LoRa.readBytes(iv, IV_SIZE); LoRa.readBytes(tag, TAG_SIZE);
-            int pLen = h.payload_len; LoRa.readBytes(ciphertext, pLen);
-
-            mbedtls_gcm_context gcm; mbedtls_gcm_init(&gcm);
-            mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, mesh_key, 256);
-            
-            if (mbedtls_gcm_auth_decrypt(&gcm, pLen, iv, IV_SIZE, NULL, 0, tag, TAG_SIZE, ciphertext, plaintext) == 0) {
-                plaintext[pLen] = '\0'; 
-                addTerminal((char*)plaintext, false);
-                SerialBT.printf("IN [%04X]: %s\n", h.src, (char*)plaintext);
-                if(h.dest == nodeID) sendACK(h.src, h.msg_id);
-            }
-            mbedtls_gcm_free(&gcm); 
-            drawUI();
-        }
+    // ---------- ACK ----------
+    if (h.packet_type == PKT_ACK) {
+        if (h.dest == nodeID) handleACK(h.msg_id);
+        return;
     }
-    
+
+    // ---------- DUP CHECK ----------
+    if (isSeen(h.src, h.msg_id)) return;
+
+    // ---------- READ REMAINING PAYLOAD ----------
+    int remain = packetLen - sizeof(OpenMeshHeader);
+    uint8_t raw[200];
+    LoRa.readBytes(raw, remain);
+
+    // ---------- LOCAL PROCESS ----------
+    bool shouldProcess =
+        (h.dest == nodeID) ||
+        (h.dest == BROADCAST_ID);
+
+    if (shouldProcess && remain >= (IV_SIZE + TAG_SIZE)) {
+        uint8_t *iv  = raw;
+        uint8_t *tag = raw + IV_SIZE;
+        uint8_t *ct  = raw + IV_SIZE + TAG_SIZE;
+
+        uint8_t pt[100];
+        int pLen = h.payload_len;
+
+        mbedtls_gcm_context gcm;
+        mbedtls_gcm_init(&gcm);
+        mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, mesh_key, 256);
+
+        if (mbedtls_gcm_auth_decrypt(
+                &gcm,
+                pLen,
+                iv, IV_SIZE,
+                NULL, 0,
+                tag, TAG_SIZE,
+                ct,
+                pt) == 0) {
+
+            pt[pLen] = 0;
+            addTerminal((char*)pt, false);
+            SerialBT.printf("IN [%04X]: %s\n", h.src, (char*)pt);
+
+            if (h.dest == nodeID)
+                sendACK(h.src, h.msg_id);
+        }
+        mbedtls_gcm_free(&gcm);
+    }
+
+    // ---------- MESH FORWARD (2-IN-1) ----------
+    if (h.ttl > 1 && h.src != nodeID) {
+        h.ttl--;
+
+        LoRa.beginPacket();
+        LoRa.write((uint8_t*)&h, sizeof(h));
+        LoRa.write(raw, remain);
+        LoRa.endPacket(true);
+        LoRa.receive();
+
+        relayedCount++;
+    }
+
+ui:
     static uint32_t lastUI = 0;
-    if (millis() - lastUI > 5000) { drawUI(); lastUI = millis(); }
+    if (millis() - lastUI > 3000) {
+        drawUI();
+        lastUI = millis();
+    }
 }
