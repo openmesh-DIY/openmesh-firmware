@@ -10,6 +10,7 @@ Because reliable communication is a primary safety requirement for backcountry n
 In off-grid environments, the failure of a communication device can lead to severe safety risks. Until a stable patch is developed, tested, and verified to resolve these routing and confirmation errors, please limit the use of this setup to controlled, non-critical testing environments only.
 The safety of this community remains the highest priority. I am currently working to document the specific logs associated with this bug to assist the developers in a swift resolution.
 Please acknowledge this warning and share it with any peers who may be planning to rely on this system for upcoming trips. Thank you for your immediate attention to this matter and for your commitment to collective safety.
+Were fixing and launching the new firmware as soon as possible,
 Stay safe.
 <!--
 This project exists because "cheap" shouldn't mean "locked down".
